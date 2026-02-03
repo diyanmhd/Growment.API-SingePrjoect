@@ -1,6 +1,7 @@
 ﻿using Growment.API.Data;
 using Growment.API.Services.Auth;
 using Growment.API.Services.Common;
+using Growment.API.Services.Mentor;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -58,6 +59,8 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<IMentorService, MentorService>();
+
 
 // ===================== JWT CONFIG =====================
 var jwtSettings = builder.Configuration.GetSection("Jwt");
