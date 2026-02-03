@@ -3,7 +3,9 @@ using Growment.API.Common;
 using Growment.API.Data;
 using Growment.API.Models;
 using Growment.API.Services.Auth;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Growment.API.Controllers
 {
@@ -28,51 +30,38 @@ namespace Growment.API.Controllers
             _context = context;
         }
 
-        // ===================== REGISTER =====================
         [HttpPost("register")]
         public async Task<IActionResult> Register(UserRegisterRequest request)
         {
             var response = await _authService.RegisterAsync(request);
-
-            if (!response.Success)
-                return BadRequest(response);
-
+            if (!response.Success) return BadRequest(response);
             return Ok(response);
         }
 
-        // ===================== LOGIN =====================
         [HttpPost("login")]
         public async Task<IActionResult> Login(UserLoginRequest request)
         {
             var response = await _authService.LoginAsync(request);
-
-            if (!response.Success)
-                return BadRequest(response);
-
+            if (!response.Success) return BadRequest(response);
             return Ok(response);
         }
 
-        // ===================== REFRESH TOKEN =====================
         [HttpPost("refresh")]
         public async Task<IActionResult> Refresh(RefreshTokenRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.RefreshToken))
                 return BadRequest(ApiResponse.Fail("Refresh token is required"));
 
-            // 1️⃣ Validate refresh token
             var isValid = await _refreshTokenService.ValidateAsync(request.RefreshToken);
             if (!isValid)
                 return Unauthorized(ApiResponse.Fail("Invalid refresh token"));
 
-            // 2️⃣ Get userId from refresh token
             var userId = await _refreshTokenService.GetUserIdAsync(request.RefreshToken);
             if (userId == null)
                 return Unauthorized(ApiResponse.Fail("Invalid refresh token"));
 
-            // 3️⃣ Revoke old refresh token
             await _refreshTokenService.RevokeAsync(request.RefreshToken);
 
-            // 4️⃣ Get user details
             using var connection = _context.CreateConnection();
             var user = await connection.QueryFirstOrDefaultAsync<dynamic>(
                 "SELECT UserId, Email, Role FROM Users WHERE UserId = @UserId",
@@ -82,7 +71,6 @@ namespace Growment.API.Controllers
             if (user == null)
                 return Unauthorized(ApiResponse.Fail("User not found"));
 
-            // 5️⃣ Generate new tokens
             var newAccessToken =
                 _jwtService.GenerateToken(user.UserId, user.Email, user.Role);
 
@@ -103,10 +91,39 @@ namespace Growment.API.Controllers
             if (string.IsNullOrWhiteSpace(request.RefreshToken))
                 return BadRequest(ApiResponse.Fail("Refresh token is required"));
 
-            // Revoke refresh token
             await _refreshTokenService.RevokeAsync(request.RefreshToken);
-
             return Ok(ApiResponse.Ok("Logged out successfully"));
+        }
+
+        [Authorize]
+        [HttpPost("change-password/send-otp")]
+        public async Task<IActionResult> SendChangePasswordOtp()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var emailClaim = User.FindFirst(ClaimTypes.Email)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim) || string.IsNullOrEmpty(emailClaim))
+                return Unauthorized(ApiResponse.Fail("Invalid token claims"));
+
+            int userId = int.Parse(userIdClaim);
+            string email = emailClaim;
+
+            var response =
+                await _authService.GenerateChangePasswordOtpAsync(userId, email);
+
+            return Ok(response);
+        }
+
+        [HttpPost("change-password")]
+        public async Task<IActionResult> ChangePasswordWithOtp(
+            OtpChangePasswordRequest request)
+        {
+            var response = await _authService.ChangePasswordWithOtpAsync(request);
+
+            if (!response.Success)
+                return BadRequest(response);
+
+            return Ok(response);
         }
     }
 }
