@@ -1,4 +1,5 @@
 ﻿using Growment.API.Data;
+using Growment.API.Repositories.Mentor;
 using Growment.API.Services.Auth;
 using Growment.API.Services.Common;
 using Growment.API.Services.Mentor;
@@ -14,7 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Controllers
 builder.Services.AddControllers();
 
-// Swagger + JWT Bearer support
+// Swagger + JWT Bearer
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -24,7 +25,6 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1"
     });
 
-    // 🔐 JWT Bearer config for Swagger
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -51,18 +51,24 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// Dapper
+// ===================== DATABASE =====================
+
 builder.Services.AddSingleton<DapperContext>();
 
-// Auth Services
+// ===================== REPOSITORIES =====================
+
+builder.Services.AddScoped<IMentorRepository, MentorRepository>();
+
+// ===================== SERVICES =====================
+
+builder.Services.AddScoped<IMentorService, MentorService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<EmailService>();
-builder.Services.AddScoped<IMentorService, MentorService>();
-
 
 // ===================== JWT CONFIG =====================
+
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]);
 
@@ -91,6 +97,7 @@ builder.Services.AddAuthentication(options =>
 var app = builder.Build();
 
 // ===================== MIDDLEWARE =====================
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
